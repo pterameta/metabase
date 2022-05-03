@@ -374,7 +374,7 @@ class AccordionList extends Component {
     }
   };
 
-  getRowsCached = (
+  getRowsCached(
     searchFilter,
     searchable,
     sections,
@@ -384,7 +384,7 @@ class AccordionList extends Component {
     itemIsSelected,
     hideEmptySectionsInSearch,
     openSection,
-  ) => {
+  ) {
     const sectionIsExpanded = sectionIndex =>
       alwaysExpanded || openSection === sectionIndex;
     const sectionIsSearchable = sectionIndex =>
@@ -483,7 +483,7 @@ class AccordionList extends Component {
     }
 
     return rows;
-  };
+  }
 
   getRows() {
     const {
@@ -666,4 +666,4 @@ class AccordionList extends Component {
   }
 }
 
-export default memoizeClass(AccordionList, "getRowsCached");
+export default memoizeClass("getRowsCached")(AccordionList);
