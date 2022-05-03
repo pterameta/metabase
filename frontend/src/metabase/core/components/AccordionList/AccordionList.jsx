@@ -11,7 +11,7 @@ import { AccordionListCell } from "./AccordionListCell";
 import { AccordionListRoot } from "./AccordionList.styled";
 import { getNextCursor, getPrevCursor } from "./utils";
 
-export default class AccordionList extends Component {
+class AccordionList extends Component {
   constructor(props, context) {
     super(props, context);
 
@@ -665,3 +665,5 @@ export default class AccordionList extends Component {
     );
   }
 }
+
+export default memoizeClass(AccordionList, "getRowsCached");
