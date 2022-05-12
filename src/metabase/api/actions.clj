@@ -4,17 +4,24 @@
    [compojure.core :as compojure :refer [POST]]
    [metabase.actions :as actions]
    [metabase.api.common :as api]
+   [metabase.driver :as driver]
    [metabase.models.database :refer [Database]]
    [metabase.models.setting :as setting]
    [metabase.models.table :refer [Table]]
+   [metabase.util :as u]
    [metabase.util.i18n :as i18n]
    [metabase.util.schema :as su]
    [toucan.db :as db]))
 
 (defn- do-action-for-table [table-id thunk]
   {:pre [(integer? table-id)]}
-  (let [database-id (api/check-404 (db/select-one-field :db_id Table :id table-id))
-        db-settings (db/select-one-field :settings Database :id database-id)]
+  (let [database-id                                     (api/check-404 (db/select-one-field :db_id Table :id table-id))
+        {db-settings :settings, driver :engine, :as db} (db/select-one Database :id database-id)]
+    (when-not (driver/database-supports? driver :actions db)
+      (throw (ex-info (i18n/tru "{0} Database {1} does not support actions."
+                                (u/qualified-name driver)
+                                (format "%d %s" (:id db) (pr-str (:name db))))
+                      {:status-code 400, :database-id (:id db)})))
     (binding [setting/*database-local-values* db-settings]
       ;; make sure Actions are enabled for this Database
       (when-not (actions/database-enable-actions)
