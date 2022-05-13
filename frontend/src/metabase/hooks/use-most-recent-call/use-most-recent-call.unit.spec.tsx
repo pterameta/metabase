@@ -13,20 +13,20 @@ function TestComponent({
   trigger: number;
   asyncFn: AsyncFnWithOptionalAbort;
 }) {
-  const [num, setNum] = useState(0);
+  const [text, setText] = useState("unchanged");
   const fn = useMostRecentCall(asyncFn);
 
   useEffect(() => {
     fn(trigger)
       .then(res => {
-        setNum(res);
+        setText(`resolved: ${res}`);
       })
       .catch(err => {
-        setNum(err);
+        setText(`rejected: ${err}`);
       });
   }, [fn, trigger]);
 
-  return <div>{num}</div>;
+  return <div>{text}</div>;
 }
 
 describe("useMostRecentCall", () => {
@@ -36,7 +36,7 @@ describe("useMostRecentCall", () => {
       <TestComponent asyncFn={asyncFn} trigger={1} />,
     );
 
-    return findByText("1");
+    return findByText("resolved: 1");
   });
 
   it("should only ever resolve last call's promise", async () => {
@@ -53,7 +53,7 @@ describe("useMostRecentCall", () => {
     rerender(<TestComponent asyncFn={asyncFn} trigger={2} />);
     rerender(<TestComponent asyncFn={asyncFn} trigger={3} />);
 
-    await findByText("0");
+    await findByText("unchanged");
 
     // before most recent call resolves
     resolveFnMap[1]();
@@ -62,7 +62,7 @@ describe("useMostRecentCall", () => {
     // after most recent call resolves
     resolveFnMap[2]();
 
-    await findByText("3");
+    await findByText("resolved: 3");
   });
 
   it("should only reject last call's promise", async () => {
@@ -79,7 +79,7 @@ describe("useMostRecentCall", () => {
     rerender(<TestComponent asyncFn={asyncFn} trigger={2} />);
     rerender(<TestComponent asyncFn={asyncFn} trigger={3} />);
 
-    await findByText("0");
+    await findByText("unchanged");
 
     // before most recent call resolves
     rejectFnMap[1]();
@@ -88,18 +88,22 @@ describe("useMostRecentCall", () => {
     // after most recent call resolves
     rejectFnMap[2]();
 
-    await findByText("3");
+    await findByText("rejected: 3");
   });
 
-  it("should support an optional abort function", async () => {
+  it("should abort old requests if given an abort function", async () => {
     const resolveFnMap: Record<number, () => void> = {};
     const abortFnMap: Record<number, () => void> = {};
     const asyncFnWithAbort = (num: number): [Promise<number>, () => void] => {
       const abortFn = jest.fn();
       abortFnMap[num] = abortFn;
       return [
-        new Promise(resolve => {
+        new Promise((resolve, reject) => {
           resolveFnMap[num] = resolve.bind(null, num);
+          // @ts-expect-error -- it is jest mock, types are weird
+          abortFnMap[num].mockImplementation(() => {
+            reject("aborted");
+          });
         }),
         abortFn,
       ];
@@ -114,16 +118,18 @@ describe("useMostRecentCall", () => {
     rerender(<TestComponent asyncFn={asyncFnWithAbort} trigger={2} />);
 
     expect(abortFnMap[1]).toHaveBeenCalled();
+    // test that the abort error doesn't show up in the UI
+    await expect(() => findByText("rejected: aborted")).rejects.toThrow();
 
     rerender(<TestComponent asyncFn={asyncFnWithAbort} trigger={3} />);
 
     expect(abortFnMap[2]).toHaveBeenCalled();
 
-    await findByText("0");
+    await findByText("unchanged");
 
     // most recent call
     resolveFnMap[3]();
 
-    await findByText("3");
+    await findByText("resolved: 3");
   });
 });
