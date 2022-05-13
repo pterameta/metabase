@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { render } from "@testing-library/react";
 
-import { AsyncFn } from "metabase-types/types";
-
-import { useMostRecentCall } from "./use-most-recent-call";
+import {
+  useMostRecentCall,
+  AsyncFnWithOptionalAbort,
+} from "./use-most-recent-call";
 
 function TestComponent({
   trigger,
   asyncFn,
 }: {
   trigger: number;
-  asyncFn: AsyncFn;
+  asyncFn: AsyncFnWithOptionalAbort;
 }) {
   const [num, setNum] = useState(0);
   const fn = useMostRecentCall(asyncFn);
@@ -86,6 +87,42 @@ describe("useMostRecentCall", () => {
     rejectFnMap[3]();
     // after most recent call resolves
     rejectFnMap[2]();
+
+    await findByText("3");
+  });
+
+  it("should support an optional abort function", async () => {
+    const resolveFnMap: Record<number, () => void> = {};
+    const abortFnMap: Record<number, () => void> = {};
+    const asyncFnWithAbort = (num: number): [Promise<number>, () => void] => {
+      const abortFn = jest.fn();
+      abortFnMap[num] = abortFn;
+      return [
+        new Promise(resolve => {
+          resolveFnMap[num] = resolve.bind(null, num);
+        }),
+        abortFn,
+      ];
+    };
+
+    const { rerender, findByText } = render(
+      <TestComponent asyncFn={asyncFnWithAbort} trigger={1} />,
+    );
+
+    expect(abortFnMap[1]).not.toHaveBeenCalled();
+
+    rerender(<TestComponent asyncFn={asyncFnWithAbort} trigger={2} />);
+
+    expect(abortFnMap[1]).toHaveBeenCalled();
+
+    rerender(<TestComponent asyncFn={asyncFnWithAbort} trigger={3} />);
+
+    expect(abortFnMap[2]).toHaveBeenCalled();
+
+    await findByText("0");
+
+    // most recent call
+    resolveFnMap[3]();
 
     await findByText("3");
   });
